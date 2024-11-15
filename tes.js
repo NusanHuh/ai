@@ -13,7 +13,7 @@ const peerServer = ExpressPeerServer(server, {
 });
 
 app.use('/peerjs', peerServer);
-app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 io.on('connection', (socket) => {
   socket.on('join-room', (roomId, userId) => {
