@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PeerJS Video Call</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f0f0;
+    margin: 0;
+  }
+  #room-container {
+    margin: 20px;
+  }
+  input, button {
+    padding: 10px;
+    margin: 5px;
+  }
+  #videos {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  video {
+    width: 300px;
+    height: 200px;
+    background: black;
+  }
+</style>
+</head>
+<body>
+  <div id="room-container">
+    <h2>Video Call with PeerJS</h2>
+    <input type="text" id="room-id" placeholder="Enter room ID or create one">
+    <button id="create-room">Create Room</button>
+    <button id="join-room">Join Room</button>
+  </div>
+
+  <div id="videos"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const peer = new Peer(undefined, {
+      host: '/',
+      port: location.port,
+      path: '/peerjs'
+    });
+
+    const roomIdInput = document.getElementById('room-id');
+    const createRoomButton = document.getElementById('create-room');
+    const joinRoomButton = document.getElementById('join-room');
+    const videoGrid = document.getElementById('videos');
+    const myVideo = document.createElement('video');
+    myVideo.muted = true;
+    let myStream;
+
+    // Mendapatkan stream kamera pengguna
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    }).then(stream => {
+      myStream = stream;
+      addVideoStream(myVideo, stream);
+
+      // Saat create room
+      createRoomButton.onclick = () => {
+        const roomId = roomIdInput.value.trim();
+        if (roomId) {
+          alert(`Room created: ${roomId}`);
+          joinRoom(roomId, peer.id, stream);
+        } else {
+          alert('Please enter a room ID to create.');
+        }
+      };
+
+      // Saat join room
+      joinRoomButton.onclick = () => {
+        const roomId = roomIdInput.value.trim();
+        if (roomId) {
+          joinRoom(roomId, peer.id, stream);
+        } else {
+          alert('Please enter a room ID to join.');
+        }
+      };
+
+      // Mendapatkan panggilan
+      peer.on('call', call => {
+        call.answer(stream);
+        const video = document.createElement('video');
+        call.on('stream', userVideoStream => {
+          addVideoStream(video, userVideoStream);
+        });
+      });
+    });
+
+    // Fungsi join room
+    function joinRoom(roomId, userId, stream) {
+      socket.emit('join-room', roomId, userId);
+      
+      socket.on('user-connected', userId => {
+        const call = peer.call(userId, stream);
+        const video = document.createElement('video');
+        call.on('stream', userVideoStream => {
+          addVideoStream(video, userVideoStream);
+        });
+      });
+
+      socket.on('user-disconnected', userId => {
+        console.log(`User ${userId} disconnected`);
+      });
+    }
+
+    peer.on('open', id => {
+      console.log(`PeerJS ID: ${id}`);
+    });
+
+    // Menambahkan video ke halaman
+    function addVideoStream(video, stream) {
+      video.srcObject = stream;
+      video.addEventListener('loadedmetadata', () => {
+        video.play();
+      });
+      videoGrid.append(video);
+    }
+  </script>
+</body>
+</html>
